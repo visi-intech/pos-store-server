@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_cashback_sellout,access.cashback.sellout,model_cashback_sellout,base.group_user,1,1,1,1
+access_cashback_sellout_line,access.cashback.sellout.line,model_cashback_sellout_line,base.group_user,1,1,1,1
+access_cashback_sellout_wizard,access.cashback.sellout.wizard,model_cashback_sellout_wizard,base.group_user,1,1,1,1
+access_cashback_sellout_wizard_line,access.cashback.sellout.wizard_line,model_cashback_sellout_wizard_line,base.group_user,1,1,1,1
+access_cashback_sellout_serial_line,access.cashback.sellout.serial.line,model_cashback_sellout_serial_line,base.group_user,1,1,1,1
+access_cashback_sellout_import_serial_wizard,access.cashback.sellout.import.serial.wizard,model_cashback_sellout_import_serial_wizard,base.group_user,1,1,1,1

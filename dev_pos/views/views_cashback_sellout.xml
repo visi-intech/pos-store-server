@@ -1,0 +1,110 @@
+<odoo>
+    <!-- Form view for Cashback Sellout -->
+    <record id="view_cashback_sellout_form" model="ir.ui.view">
+        <field name="name">cashback.sellout.form</field>
+        <field name="model">cashback.sellout</field>
+        <field name="arch" type="xml">
+            <form string="Cashback Sellout">
+                <sheet>
+                    <group>
+                        <field name="doc_num"/>
+                        <field name="partner_id"/>
+                        <field name="doc_date"/>
+                    </group>
+                    <notebook>
+                        <page string="Sellout Lines">
+                            <field name="sellout_ids" options="{'reload_on_button': True}">
+                                <tree editable="bottom">
+                                    <field name="product_id"/>
+                                    <!-- <field name="quantity"/> -->
+                                    <button type="object" name="action_open_wizard" class="btn btn-link fa fa-list oe_highlight" title="Edit Serial Numbers"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Tree view for Cashback Sellout -->
+    <record id="view_cashback_sellout_tree" model="ir.ui.view">
+        <field name="name">cashback.sellout.tree</field>
+        <field name="model">cashback.sellout</field>
+        <field name="arch" type="xml">
+            <tree string="Cashback Sellouts">
+                <field name="doc_num"/>
+                <field name="partner_id"/>
+                <field name="doc_date"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Tree view for Cashback Sellout Line -->
+    <record id="view_cashback_sellout_line_tree" model="ir.ui.view">
+        <field name="name">cashback.sellout.line.tree</field>
+        <field name="model">cashback.sellout.line</field>
+        <field name="arch" type="xml">
+            <tree string="Cashback Sellout Lines">
+                <field name="sellout_id"/>
+                <field name="product_id"/>
+                <!-- <field name="quantity"/> -->
+            </tree>
+        </field>
+    </record>
+
+    <!-- Form view for Cashback Sellout Wizard -->
+    <record id="view_cashback_sellout_wizard_form" model="ir.ui.view">
+        <field name="name">cashback.sellout.wizard.form</field>
+        <field name="model">cashback.sellout.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Cashback Sellout Wizard">
+                <header>
+                    <button string="Import Serial Number" type="object" name="action_open_import_serial_wizard"/>
+                </header>
+                <sheet>
+                    <field name="wizard_line_ids">
+                        <tree editable="bottom">
+                            <field name="serial_number"/>
+                            <field name="quantity"/>
+                        </tree>
+                    </field>
+                    <footer>
+                        <button string="Save" type="object" class="btn-primary" name="action_save"/>
+                        <button string="Cancel" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+
+    <!-- Form view for Cashback Sellout Import Serial Wizard -->
+    <record id="view_cashback_sellout_import_serial_wizard_form" model="ir.ui.view">
+        <field name="name">cashback.sellout.import.serial.wizard.form</field>
+        <field name="model">cashback.sellout.import.serial.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Serial Number">
+                <sheet>
+                    <group>
+                        <field name="serial_number"/>
+                    </group>
+                    <footer>
+                        <button string="Save" type="object" class="btn-primary" name="action_import"/>
+                        <button string="Cancel" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action for Cashback Sellout -->
+    <record id="action_cashback_sellout" model="ir.actions.act_window">
+        <field name="name">Cashback Sellouts</field>
+        <field name="res_model">cashback.sellout</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <!-- Menu item for Cashback Sellout -->
+    <menuitem id="menu_cashback_sellout" name="Cashback Sellouts" action="action_cashback_sellout"/>
+</odoo>
