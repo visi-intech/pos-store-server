@@ -307,4 +307,24 @@ class PaymentPATCH(http.Controller):
                 return json.dumps({'code': 500, 'status': 'error', 'message': 'Invalid data', 'id': return_id})
         except Exception as e:
             return serialize_error_response(str(e))
+        
+class PaymentCreditMemoPATCH(http.Controller):
+    @http.route(['/api/payment_creditmemo/<int:return_id>'], type='http', auth='public', methods=['PATCH'], csrf=False)
+    def update_payment_credit_memo(self, return_id, **kwargs):
+        try:
+            check_authorization()
+            data = json.loads(request.httprequest.data)
+            is_integrated = data.get('is_integrated')
+
+            if is_integrated:
+                payment_creditmemo= request.env['account.move'].sudo().search([('id', '=', return_id), ('move_type', '=', 'entry')], limit=1)
+                if payment_creditmemo.exists():
+                    payment_creditmemo.write({'is_integrated': is_integrated})
+                    return json.dumps({'code': 200, 'status': 'success', 'message': 'Payment Credit Memo updated successfully', 'id': return_id})
+                else:
+                    return json.dumps({'code': 404, 'status': 'error', 'message': 'Payment Credit Memo not found', 'id': return_id})
+            else:
+                return json.dumps({'code': 500, 'status': 'error', 'message': 'Invalid data', 'id': return_id})
+        except Exception as e:
+            return serialize_error_response(str(e))
 

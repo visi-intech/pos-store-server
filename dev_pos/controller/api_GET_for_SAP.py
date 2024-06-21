@@ -17,7 +17,7 @@ class PaymentAPI(http.Controller):
                 return serialize_response([], 0, 0)
 
             date_format = '%Y-%m-%d'
-            domain = []
+            domain = [('move_type', '=', 'out_invoice'), ('state', '=', 'posted')]
 
             if q:
                 domain += [('name', 'ilike', str(q))]
@@ -58,7 +58,7 @@ class PaymentAPI(http.Controller):
 
                 order_pos = http.request.env['pos.order'].sudo().search([('order_ref', '=', reference), ('state', '=', 'invoiced')], limit=1)
                 for record in order_pos:
-                    pickings = http.request.env['stock.picking'].sudo().search([('origin', '=', record.name)])
+                    pickings = http.request.env['stock.picking'].sudo().search([('origin', '=', record.name)], limit=1)
                     location_id = pickings.location_id.id
                     location = pickings.location_id.complete_name
 
@@ -127,7 +127,7 @@ class PaymentReturnCreditMemoAPI(http.Controller):
                 return serialize_response([], 0, 0)
 
             date_format = '%Y-%m-%d'
-            domain = []
+            domain = [('move_type', '=', 'out_refund'), ('state', '=', 'posted')]
 
             if q:
                 domain += [('name', 'ilike', str(q))]
@@ -168,7 +168,7 @@ class PaymentReturnCreditMemoAPI(http.Controller):
 
                 order_pos = http.request.env['pos.order'].sudo().search([('order_ref', '=', reference), ('state', '=', 'invoiced')], limit=1)
                 for record in order_pos:
-                    pickings = http.request.env['stock.picking'].sudo().search([('origin', '=', record.name)])
+                    pickings = http.request.env['stock.picking'].sudo().search([('origin', '=', record.name)], limit=1)
                     location_id = pickings.location_id.id
                     location = pickings.location_id.complete_name
 
@@ -1257,7 +1257,7 @@ class InvoiceOrder(http.Controller):
         try:
             check_authorization()
 
-            invoicing = http.request.env['account.move'].sudo().browse(order_id)
+            invoicing = http.request.env['account.move'].sudo().search([('id', '=', order_id), ('move_type', '=', 'out_invoice')], limit=1)
             if not invoicing:
                 raise werkzeug.exceptions.NotFound(_("Invoice Order not found"))
 
@@ -1265,7 +1265,7 @@ class InvoiceOrder(http.Controller):
             location_id = None
             location = None
             # for record in order_pos:
-            pickings = http.request.env['stock.picking'].sudo().search([('origin', '=', invoicing.ref)])
+            pickings = http.request.env['stock.picking'].sudo().search([('origin', '=', invoicing.ref)], limit=1)
             location_id = pickings.location_id.id
             location = pickings.location_id.complete_name
 
@@ -1580,7 +1580,7 @@ class CrediNoteAPI(http.Controller):
         try:
             check_authorization()
 
-            invoicing = http.request.env['account.move'].sudo().browse(order_id)
+            invoicing = http.request.env['account.move'].sudo().search([('id', '=', order_id), ('move_type', '=', 'out_refund')], limit=1)
             if not invoicing:
                 raise werkzeug.exceptions.NotFound(_("Invoice Order not found"))
 
@@ -1588,7 +1588,7 @@ class CrediNoteAPI(http.Controller):
             location_id = None
             location = None
             # for record in order_pos:
-            pickings = http.request.env['stock.picking'].sudo().search([('origin', '=', invoicing.ref)])
+            pickings = http.request.env['stock.picking'].sudo().search([('origin', '=', invoicing.ref)], limit=1)
             location_id = pickings.location_dest_id.id
             location = pickings.location_dest_id.complete_name
 

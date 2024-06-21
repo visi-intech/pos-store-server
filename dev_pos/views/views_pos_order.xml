@@ -11,11 +11,14 @@
             <field name="order_ref"/>
         </xpath>
         <xpath expr="//header" position="inside">
-            <button name="update_pos_order" string="Update Tax" type="object" class="oe_highlight"/>
+            <button name="action_credit_note_invoice" string="Credit Note" type="object" class="oe_highlight" modifiers="{'invisible': [('state', '!=', 'paid')]}"/>
         </xpath>
-        <xpath expr="//page[@name='products']//field[@name='lines']//field[@name='tax_ids_after_fiscal_position']" position="attributes">
+        <!-- <xpath expr="//header" position="inside">
+            <button name="action_invoice_refund" string="Credit Note" type="object" class="oe_highlight" attrs="{'invisible':[('state','!=', 'paid')]}"/>
+        </xpath> -->
+        <!-- <xpath expr="//page[@name='products']//field[@name='lines']//field[@name='tax_ids_after_fiscal_position']" position="attributes">
           <attribute name="readonly">0</attribute>
-        </xpath>
+        </xpath> -->
       </field>
     </record>
 
