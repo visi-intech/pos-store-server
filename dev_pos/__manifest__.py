@@ -7,7 +7,7 @@
     'company': 'Visi Intech',
     'maintainer': 'Visi Intech',
     'website': "https://www.Visi-Intech.com",
-    'depends': ['point_of_sale', 'contacts', 'base', 'web', 'account', 'sale', 'stock'],
+    'depends': ['base', 'sale', 'contacts', 'stock', 'point_of_sale', 'account'],
     'data': [
         # 'security/hr_security.xml',
         'security/ir.model.access.csv',
@@ -20,6 +20,8 @@
         'views/views_log_note.xml',
         'views/menu_log_note.xml',
         'views/views_pos_session.xml',
+        'views/ir_sequence_view.xml',
+        'views/product_template_view.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,

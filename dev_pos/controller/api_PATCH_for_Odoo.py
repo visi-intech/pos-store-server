@@ -109,7 +109,6 @@ class MasterPricelistPATCH(http.Controller):
         except Exception as e:
             return json.dumps({"code": 500, "status": 'failed', "message": str(e), "id": return_id})
 
-        
 class MasterCategoryPATCH(http.Controller):
     @http.route(['/api/item_category/<int:return_id>'], type='http', auth='public', methods=['PATCH'], csrf=False)
     def update_master_category_item(self, return_id, **kwargs):
@@ -130,6 +129,26 @@ class MasterCategoryPATCH(http.Controller):
                 'parent_id': parent_cateogry_id,
                 'property_cost_method': costing_method,
                 'create_date': create_date
+            })
+
+            return json.dumps({'code': 200, 'status': 'success', 'message': 'Master Category updated successfully', 'id': return_id})
+
+        except Exception as e:
+            return json.dumps({"code": 500, "status": 'failed', "message": str(e), "id": return_id})
+        
+class MasterPoSCategoryPATCH(http.Controller):
+    @http.route(['/api/pos_category/<int:return_id>'], type='http', auth='public', methods=['PATCH'], csrf=False)
+    def update_master_pos_category_item(self, return_id, **kwargs):
+        try:
+            check_authorization()
+            data = json.loads(request.httprequest.data)
+            
+            category_name = data.get('category_name')
+            master_category = request.env['pos.category'].sudo().browse(int(return_id))
+
+            # Update name and currency_id
+            master_category.write({
+                'name': category_name,
             })
 
             return json.dumps({'code': 200, 'status': 'success', 'message': 'Master Category updated successfully', 'id': return_id})
@@ -179,7 +198,7 @@ class GoodsReceiptPATCH(http.Controller):
         is_integrated = data.get('is_integrated')
 
         if is_integrated:
-            goods_receipt_order = request.env['stock.picking'].sudo().search([('id', '=', return_id), ('picking_type_id.name', '=', 'Goods Receipt')], limit=1)
+            goods_receipt_order = request.env['stock.picking'].sudo().search([('id', '=', return_id), ('picking_type_id.name', '=', 'Goods Receipts')], limit=1)
             if goods_receipt_order.exists():
                 goods_receipt_order.write({'is_integrated': is_integrated})
                 return json.dumps({'code': 200, 'status': 'success', 'message': 'Goods Receipt updated successfully', 'id': return_id})
@@ -189,7 +208,7 @@ class GoodsReceiptPATCH(http.Controller):
             return json.dumps({'code': 500, 'status': 'error', 'message': 'Invalid data', 'id': return_id})
         
 class InternalTransferPATCH(http.Controller):
-    @http.route(['/api/internal_transfer/<int:return_id>'], type='json', auth='public', methods=['PATCH'], csrf=False)
+    @http.route(['/api/internal_transfers/<int:return_id>'], type='json', auth='public', methods=['PATCH'], csrf=False)
     def update_internal_transfer_order(self, return_id, **kwargs):
         try:
             check_authorization()
@@ -197,7 +216,7 @@ class InternalTransferPATCH(http.Controller):
             is_integrated = data.get('is_integrated')
 
             if is_integrated:
-                internal_trasnfer_order = request.env['stock.picking'].sudo().search([('id', '=', return_id), ('picking_type_id.name', '=', 'Internal Transfer')], limit=1)
+                internal_trasnfer_order = request.env['stock.picking'].sudo().search([('id', '=', return_id), ('picking_type_id.name', '=', 'Internal Transfers')], limit=1)
                 if internal_trasnfer_order.exists():
                     internal_trasnfer_order.write({'is_integrated': is_integrated})
                     return json.dumps({'code': 200, 'status': 'success', 'message': 'Internal Transfer updated successfully', 'id': return_id})

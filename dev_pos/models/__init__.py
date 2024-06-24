@@ -6,3 +6,7 @@ from . import res_partner
 from . import log_code_runtime
 from . import log_note
 from . import pos_session
+from . import pos_order_line
+from . import ir_sequence
+from . import stock_picking_type
+from . import product_template

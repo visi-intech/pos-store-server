@@ -458,6 +458,74 @@ class MasterCategoryItem(http.Controller):
         except Exception as e:
             return serialize_error_response(str(e))
         
+class MasterPoSCategoryItem(http.Controller):
+    @http.route(['/api/pos_category/'], type='http', auth='public', methods=['GET'], csrf=False)
+    def master_pos_category_item_get(self, createdDateFrom=None, createdDateTo=None, pageSize=200, page=1, q=None, **params):
+        try:
+            check_authorization()
+
+            # if not q and (not createdDateFrom or not createdDateTo or not pageSize or not page):
+            #     raise ValidationError("One or more required parameters are missing.")
+
+            if int(page) == 0:
+                return serialize_response([], 0, 0)
+
+            date_format = '%Y-%m-%d'
+            domain = []  # Initialize domain here
+
+            if q:
+                domain += [('name', 'ilike', str(q))]
+
+            if not createdDateFrom and not createdDateTo and not q:
+                # Handle the case when no specific filters are provided
+                category_data = http.request.env['pos.category'].sudo().search([])
+                total_records = len(category_data)
+            else:
+                if createdDateFrom or createdDateTo:
+                    created_date_from = fields.Date.from_string(createdDateFrom) if createdDateFrom else fields.Date.today()
+                    created_date_to = fields.Date.from_string(createdDateTo) if createdDateTo else fields.Date.today()
+
+                    domain += [('create_date', '>=', created_date_from.strftime(date_format)),
+                          ('create_date', '<=', created_date_to.strftime(date_format))]
+
+                pageSize = int(pageSize) if pageSize else 200
+
+            if not q:  # Check if q is provided
+                category_data, total_records = paginate_records('pos.category', domain, pageSize, page)
+            else:
+                category_data = http.request.env['pos.category'].sudo().search(domain)
+                total_records = len(category_data)
+
+            data_category_data = []
+            jakarta_tz = pytz.timezone('Asia/Jakarta')
+            for category in category_data:
+                create_date_utc = category.create_date
+                create_date_jakarta = pytz.utc.localize(create_date_utc).astimezone(jakarta_tz)
+                categorys_data = {
+                    'id': category.id,
+                    'category_name': category.name,
+                    'create_date': str(create_date_jakarta),
+                }
+                data_category_data.append(categorys_data)
+
+            if not createdDateFrom and not createdDateTo and not q:
+                total_records = len(data_category_data)
+
+            total_pages = (total_records + pageSize - 1) // pageSize
+
+            return serialize_response(data_category_data, total_records, total_pages)
+        
+        except ValidationError as ve:
+            # If any required parameter is missing, return HTTP 500 error
+            error_response = {
+                'error': 'One or more required parameters are missing.',
+                'status': 500
+            }
+            return http.Response(json.dumps(error_response), content_type='application/json', status=500)
+
+        except Exception as e:
+            return serialize_error_response(str(e))
+        
 class MasterCustomerAPI(http.Controller):
     @http.route(['/api/master_customer/'], type='http', auth='public', methods=['GET'], csrf=False)
     def master_customer_get(self, createdDateFrom=None, createdDateTo=None, pageSize=200, page=1, q=None, **params):
@@ -742,6 +810,9 @@ class MasterProductItemAPI(http.Controller):
             for product in product_data:
                 create_date_utc = product.create_date
                 create_date_jakarta = pytz.utc.localize(create_date_utc).astimezone(jakarta_tz)
+                pos_categ_ids = [{'id': pos_categ.id, 'name': pos_categ.name} for pos_categ in product.pos_categ_ids]
+                categ_id = [{'id': product.categ_id.id, 'name': product.categ_id.complete_name}]
+
                 product_data = {
                     'id': product.id,
                     'product_name': product.name,
@@ -755,7 +826,9 @@ class MasterProductItemAPI(http.Controller):
                     'list_price': product.list_price,
                     'standard_price': product.standard_price,
                     'categ_id': product.categ_id.id,
-                    'categ': str(product.categ_id.parent_id.name) + ' / ' + str(product.categ_id.name),
+                    'categ': product.categ_id.complete_name,
+                    'pos_categ_id': pos_categ_ids,
+                    # 'pos_categ_name': product.pos_categ_ids.name,
                     'create_date': str(create_date_jakarta),
                 }
                 data_master_product.append(product_data)
@@ -1665,40 +1738,25 @@ class GoodsReceiptAPI(http.Controller):
         try:
             check_authorization()
 
-            # if not q and (not createdDateFrom or not createdDateTo or not pageSize or not page):
-            #     raise ValidationError("One or more required parameters are missing.")
-            
             if int(page) == 0:
                 return serialize_response([], 0, 0)
 
             date_format = '%Y-%m-%d'
-            domain = []  # Initialize domain here
+            domain = [('picking_type_id.name', '=', 'Goods Receipts'), ('state', '=', 'done')]
 
             if q:
                 domain += [('name', 'ilike', str(q))]
 
-            if not createdDateFrom and not createdDateTo:
-                # Handle the case when no specific filters are provided
-                domain = [('name', 'ilike', str(q))] if q else [('state', '=', 'done'), ('picking_type_id.name', '=', 'Goods Receipt')]
-                goods_receipt = http.request.env['stock.picking'].sudo().search(domain)
-                total_records = len(goods_receipt)
-            else:
-                if createdDateFrom or createdDateTo:
-                    created_date_from = fields.Date.from_string(createdDateFrom) if createdDateFrom else fields.Date.today()
-                    created_date_to = fields.Date.from_string(createdDateTo) if createdDateTo else fields.Date.today()
+            if createdDateFrom or createdDateTo:
+                created_date_from = fields.Date.from_string(createdDateFrom) if createdDateFrom else fields.Date.today()
+                created_date_to = fields.Date.from_string(createdDateTo) if createdDateTo else fields.Date.today()
 
-                    domain += [('create_date', '>=', created_date_from.strftime(date_format)),
-                          ('create_date', '<=', created_date_to.strftime(date_format)),
-                          ('picking_type_id.name', '=', 'Goods Receipt'),
-                          ('state', '=', 'done')]
+                domain += [('create_date', '>=', created_date_from.strftime(date_format)),
+                           ('create_date', '<=', created_date_to.strftime(date_format))]
 
-                pageSize = int(pageSize) if pageSize else 200
+            pageSize = int(pageSize) if pageSize else 200
 
-            if not q:  # Check if q is provided
-                goods_receipt, total_records = paginate_records('stock.picking', domain, pageSize, page)
-            else:
-                goods_receipt = http.request.env['stock.picking'].sudo().search(domain)
-                total_records = len(goods_receipt)
+            goods_receipt, total_records = paginate_records('stock.picking', domain, pageSize, page)
 
             data_goods_receipt = []
             jakarta_tz = pytz.timezone('Asia/Jakarta')
@@ -1710,10 +1768,10 @@ class GoodsReceiptAPI(http.Controller):
                     'doc_num': order.name,
                     'source_document': order.origin,
                     'customer_id': order.partner_id.id,
-                    'location_id': order.location_id.id,
-                    'location_name': order.location_id.name,
-                    'location_destination_id': order.location_dest_id.id,
-                    'location_destination': order.location_dest_id.name,
+                    # 'location_id': order.location_id.id,
+                    # 'location_name': order.location_id.name,
+                    'location_id': order.location_dest_id.id,
+                    'location': order.location_dest_id.complete_name,
                     'picking_type_id': order.picking_type_id.id,
                     'picking_type': order.picking_type_id.name,
                     'create_date': str(create_date_jakarta),
@@ -1748,7 +1806,7 @@ class GoodsReceiptAPI(http.Controller):
                 raise werkzeug.exceptions.NotFound(_("Goods Receipt not found"))
             
             # Ensure the order is a 'Return' type
-            if goods_receipt.picking_type_id.name != 'Goods Receipt':
+            if goods_receipt.picking_type_id.name != 'Goods Receipts':
                 raise werkzeug.exceptions.NotFound(_("Goods Receipt is not a Goods Receipt"))
 
             goods_receipt_lines = goods_receipt.move_ids_without_package
@@ -1758,7 +1816,7 @@ class GoodsReceiptAPI(http.Controller):
             location_id = goods_receipt.location_id.id
             location = goods_receipt.location_id.name
             location_dest_id = goods_receipt.location_dest_id.id
-            location_dest = goods_receipt.location_dest_id.name
+            location_dest = goods_receipt.location_dest_id.complete_name
             picking_type_id = goods_receipt.picking_type_id.id
             picking_type = goods_receipt.picking_type_id.name
             scheduled_date = str(goods_receipt.scheduled_date)
@@ -1775,10 +1833,10 @@ class GoodsReceiptAPI(http.Controller):
                     'line_number': line_number,
                     'id': line.id,
                     'doc_no': doc_num,
-                    'location_id': line.location_id.id,
-                    'location': line.location_id.name,
-                    'location_dest_id': line.location_dest_id.id,
-                    'location_dest': line.location_dest_id.name,
+                    # 'location_id': line.location_id.id,
+                    # 'location': line.location_id.name,
+                    'location_id': line.location_dest_id.id,
+                    'location': line.location_dest_id.name,
                     'product_id': line.product_id.id,
                     'product_code': line.product_id.default_code,
                     'product_name': line.product_id.name,
@@ -1794,10 +1852,10 @@ class GoodsReceiptAPI(http.Controller):
                 'doc_num': doc_num,
                 'customer_id': customer_id,
                 'customer_name': customer_name,
-                'location_id': location_id,
-                'location': location,
-                'location_destination_id': location_dest_id,
-                'location_destination': location_dest,
+                # 'location_id': location_id,
+                # 'location': location,
+                'location_id': location_dest_id,
+                'location': location_dest,
                 'picking_type_id': picking_type_id,
                 'picking_type': picking_type,
                 'created_date': created_date,
@@ -1820,40 +1878,25 @@ class GoodsIssueAPI(http.Controller):
         try:
             check_authorization()
 
-            # if not q and (not createdDateFrom or not createdDateTo or not pageSize or not page):
-            #     raise ValidationError("One or more required parameters are missing.")
-            
             if int(page) == 0:
                 return serialize_response([], 0, 0)
 
             date_format = '%Y-%m-%d'
-            domain = []  # Initialize domain here
+            domain = [('picking_type_id.name', '=', 'Goods Issue'), ('state', '=', 'done')]
 
             if q:
                 domain += [('name', 'ilike', str(q))]
 
-            if not createdDateFrom and not createdDateTo:
-                # Handle the case when no specific filters are provided
-                domain = [('name', 'ilike', str(q))] if q else [('state', '=', 'done'), ('picking_type_id.name', '=', 'Goods Issue')]
-                goods_issue = http.request.env['stock.picking'].sudo().search(domain)
-                total_records = len(goods_issue)
-            else:
-                if createdDateFrom or createdDateTo:
-                    created_date_from = fields.Date.from_string(createdDateFrom) if createdDateFrom else fields.Date.today()
-                    created_date_to = fields.Date.from_string(createdDateTo) if createdDateTo else fields.Date.today()
+            if createdDateFrom or createdDateTo:
+                created_date_from = fields.Date.from_string(createdDateFrom) if createdDateFrom else fields.Date.today()
+                created_date_to = fields.Date.from_string(createdDateTo) if createdDateTo else fields.Date.today()
 
-                    domain += [('create_date', '>=', created_date_from.strftime(date_format)),
-                          ('create_date', '<=', created_date_to.strftime(date_format)),
-                          ('picking_type_id.name', '=', 'Goods Issue'),
-                          ('state', '=', 'done')]
+                domain += [('create_date', '>=', created_date_from.strftime(date_format)),
+                           ('create_date', '<=', created_date_to.strftime(date_format))]
 
-                pageSize = int(pageSize) if pageSize else 200
+            pageSize = int(pageSize) if pageSize else 200
 
-            if not q:  # Check if q is provided
-                goods_issue, total_records = paginate_records('stock.picking', domain, pageSize, page)
-            else:
-                goods_issue = http.request.env['stock.picking'].sudo().search(domain)
-                total_records = len(goods_issue)
+            goods_issue, total_records = paginate_records('stock.picking', domain, pageSize, page)
 
             data_goods_issue = []
             jakarta_tz = pytz.timezone('Asia/Jakarta')
@@ -1866,9 +1909,7 @@ class GoodsIssueAPI(http.Controller):
                     'source_document': order.origin,
                     'customer_id': order.partner_id.id,
                     'location_id': order.location_id.id,
-                    'location_name': order.location_id.name,
-                    'location_destination_id': order.location_dest_id.id,
-                    'location_destination': order.location_dest_id.name,
+                    'location_name': order.location_id.complete_name,
                     'picking_type_id': order.picking_type_id.id,
                     'picking_type': order.picking_type_id.name,
                     'create_date': str(create_date_jakarta),
@@ -1883,7 +1924,6 @@ class GoodsIssueAPI(http.Controller):
             return serialize_response(data_goods_issue, total_records, total_pages)
 
         except ValidationError as ve:
-            # If any required parameter is missing, return HTTP 500 error
             error_response = {
                 'error': 'One or more required parameters are missing.',
                 'status': 500
@@ -1893,25 +1933,26 @@ class GoodsIssueAPI(http.Controller):
         except Exception as e:
             return serialize_error_response(str(e))
 
-    @http.route(['/api/goods_receipt_line/<int:order_id>'], type='http', auth='public', methods=['GET'], csrf=False)
+
+    @http.route(['/api/goods_issue_line/<int:order_id>'], type='http', auth='public', methods=['GET'], csrf=False)
     def get_goods_issue_lines(self, order_id, **params):
         try:
             check_authorization()
 
             goods_issue = http.request.env['stock.picking'].sudo().browse(order_id)
             if not goods_issue:
-                raise werkzeug.exceptions.NotFound(_("Goods Receipt not found"))
+                raise werkzeug.exceptions.NotFound(_("Goods Issue not found"))
             
             # Ensure the order is a 'Return' type
-            if goods_issue.picking_type_id.name != 'Goods Receipt':
-                raise werkzeug.exceptions.NotFound(_("Goods Receipt is not a Goods Receipt"))
+            if goods_issue.picking_type_id.name != 'Goods Issue':
+                raise werkzeug.exceptions.NotFound(_("Goods Issue is not a Goods Receipt"))
 
             goods_issue_lines = goods_issue.move_ids_without_package
             doc_num = goods_issue.name
             customer_name = goods_issue.partner_id.name
             customer_id = goods_issue.partner_id.id
             location_id = goods_issue.location_id.id
-            location = goods_issue.location_id.name
+            location = goods_issue.location_id.complete_name
             location_dest_id = goods_issue.location_dest_id.id
             location_dest = goods_issue.location_dest_id.name
             picking_type_id = goods_issue.picking_type_id.id
@@ -1931,9 +1972,9 @@ class GoodsIssueAPI(http.Controller):
                     'id': line.id,
                     'doc_no': doc_num,
                     'location_id': line.location_id.id,
-                    'location': line.location_id.name,
-                    'location_dest_id': line.location_dest_id.id,
-                    'location_dest': line.location_dest_id.name,
+                    'location': line.location_id.complete_name,
+                    # 'location_dest_id': line.location_dest_id.id,
+                    # 'location_dest': line.location_dest_id.name,
                     'product_id': line.product_id.id,
                     'product_code': line.product_id.default_code,
                     'product_name': line.product_id.name,
@@ -1951,8 +1992,8 @@ class GoodsIssueAPI(http.Controller):
                 'customer_name': customer_name,
                 'location_id': location_id,
                 'location': location,
-                'location_destination_id': location_dest_id,
-                'location_destination': location_dest,
+                # 'location_destination_id': location_dest_id,
+                # 'location_destination': location_dest,
                 'picking_type_id': picking_type_id,
                 'picking_type': picking_type,
                 'created_date': created_date,
@@ -1970,7 +2011,7 @@ class GoodsIssueAPI(http.Controller):
             return serialize_error_response(str(e))
         
 class InternalTransferAPI(http.Controller):
-    @http.route(['/api/internal_transfer/'], type='http', auth='public', methods=['GET'], csrf=False)
+    @http.route(['/api/internal_transfers/'], type='http', auth='public', methods=['GET'], csrf=False)
     def get_internal_transfer(self, createdDateFrom=None, createdDateTo=None, pageSize=200, page=1, q=None, **params):
         try:
             check_authorization()
@@ -1987,9 +2028,9 @@ class InternalTransferAPI(http.Controller):
             if q:
                 domain += [('name', 'ilike', str(q))]
 
-            if not createdDateFrom and not createdDateTo:
+            if not createdDateFrom and not createdDateTo and not q:
                 # Handle the case when no specific filters are provided
-                domain = [('name', 'ilike', str(q))] if q else [('state', '=', 'done'), ('picking_type_id.name', '=', 'Internal Transfer')]
+                domain = [('name', 'ilike', str(q))] if q else [('state', '=', 'done'), ('picking_type_id.name', '=', 'Internal Transfers')]
                 internal_transfers = http.request.env['stock.picking'].sudo().search(domain)
                 total_records = len(internal_transfers)
             else:
@@ -1999,7 +2040,7 @@ class InternalTransferAPI(http.Controller):
 
                     domain += [('create_date', '>=', created_date_from.strftime(date_format)),
                           ('create_date', '<=', created_date_to.strftime(date_format)),
-                          ('picking_type_id.name', '=', 'Internal Transfer'),
+                          ('picking_type_id.name', '=', 'Internal Transfers'),
                           ('state', '=', 'done')]
 
                 pageSize = int(pageSize) if pageSize else 200
@@ -2021,9 +2062,9 @@ class InternalTransferAPI(http.Controller):
                     'source_document': order.origin,
                     'customer_id': order.partner_id.id,
                     'location_id': order.location_id.id,
-                    'location_name': order.location_id.name,
+                    'location_name': order.location_id.complete_name,
                     'location_destination_id': order.location_dest_id.id,
-                    'location_destination': order.location_dest_id.name,
+                    'location_destination': order.location_dest_id.complete_name,
                     'picking_type_id': order.picking_type_id.id,
                     'picking_type': order.picking_type_id.name,
                     'create_date': str(create_date_jakarta),
@@ -2055,20 +2096,20 @@ class InternalTransferAPI(http.Controller):
 
             internal_transfers = http.request.env['stock.picking'].sudo().browse(order_id)
             if not internal_transfers:
-                raise werkzeug.exceptions.NotFound(_("Goods Receipt not found"))
+                raise werkzeug.exceptions.NotFound(_("Internal Transfers not found"))
             
             # Ensure the order is a 'Return' type
-            if internal_transfers.picking_type_id.name != 'Goods Receipt':
-                raise werkzeug.exceptions.NotFound(_("Goods Receipt is not a Goods Receipt"))
+            if internal_transfers.picking_type_id.name != 'Internal Transfers':
+                raise werkzeug.exceptions.NotFound(_("Internal Transfers is not a Internal Transfers"))
 
             internal_transfers_lines = internal_transfers.move_ids_without_package
             doc_num = internal_transfers.name
             customer_name = internal_transfers.partner_id.name
             customer_id = internal_transfers.partner_id.id
             location_id = internal_transfers.location_id.id
-            location = internal_transfers.location_id.name
+            location = internal_transfers.location_id.complete_name
             location_dest_id = internal_transfers.location_dest_id.id
-            location_dest = internal_transfers.location_dest_id.name
+            location_dest = internal_transfers.location_dest_id.complete_name
             picking_type_id = internal_transfers.picking_type_id.id
             picking_type = internal_transfers.picking_type_id.name
             scheduled_date = str(internal_transfers.scheduled_date)
@@ -2086,9 +2127,9 @@ class InternalTransferAPI(http.Controller):
                     'id': line.id,
                     'doc_no': doc_num,
                     'location_id': line.location_id.id,
-                    'location': line.location_id.name,
+                    'location': line.location_id.complete_name,
                     'location_dest_id': line.location_dest_id.id,
-                    'location_dest': line.location_dest_id.name,
+                    'location_dest': line.location_dest_id.complete_name,
                     'product_id': line.product_id.id,
                     'product_code': line.product_id.default_code,
                     'product_name': line.product_id.name,
@@ -2144,7 +2185,7 @@ class TsOutAPI(http.Controller):
 
             if not createdDateFrom and not createdDateTo:
                 # Handle the case when no specific filters are provided
-                domain = [('name', 'ilike', str(q))] if q else [('state', '=', 'done'), ('picking_type_id.name', '=', 'Transit Out')]
+                domain = [('name', 'ilike', str(q))] if q else [('state', '=', 'done'), ('picking_type_id.name', '=', 'TS Out')]
                 transit_out = http.request.env['stock.picking'].sudo().search(domain)
                 total_records = len(transit_out)
             else:
@@ -2154,7 +2195,7 @@ class TsOutAPI(http.Controller):
 
                     domain += [('create_date', '>=', created_date_from.strftime(date_format)),
                           ('create_date', '<=', created_date_to.strftime(date_format)),
-                          ('picking_type_id.name', '=', 'Transit Out'),
+                          ('picking_type_id.name', '=', 'TS Out'),
                           ('state', '=', 'done')]
 
                 pageSize = int(pageSize) if pageSize else 200
@@ -2213,7 +2254,7 @@ class TsOutAPI(http.Controller):
                 raise werkzeug.exceptions.NotFound(_("Transit Out not found"))
             
             # Ensure the order is a 'Return' type
-            if transit_out.picking_type_id.name != 'Transit Out':
+            if transit_out.picking_type_id.name != 'TS Out':
                 raise werkzeug.exceptions.NotFound(_("Transit Out is not a Goods Receipt"))
 
             transit_out_lines = transit_out.move_ids_without_package
@@ -2299,7 +2340,7 @@ class TsInAPI(http.Controller):
 
             if not createdDateFrom and not createdDateTo:
                 # Handle the case when no specific filters are provided
-                domain = [('name', 'ilike', str(q))] if q else [('state', '=', 'done'), ('picking_type_id.name', '=', 'Transit In')]
+                domain = [('name', 'ilike', str(q))]
                 transit_in = http.request.env['stock.picking'].sudo().search(domain)
                 total_records = len(transit_in)
             else:

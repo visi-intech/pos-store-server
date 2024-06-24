@@ -2,6 +2,9 @@ from odoo import http
 from odoo.http import request
 from datetime import datetime
 import json
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class POSTMasterItem(http.Controller):
     @http.route('/api/master_item', type='json', auth='public', methods=['POST'], csrf=False)
@@ -17,7 +20,8 @@ class POSTMasterItem(http.Controller):
             cost = data.get('cost')
             uom_id = data.get('uom_id')
             uom_po_id = data.get('uom_po_id')
-            categ_id = data.get('categ_id')
+            category_name = data.get('category_name')
+            pos_categ_id =  data.get('pos_categ_id')
             available_in_pos = data.get('available_in_pos')
 
             existing_items = request.env['product.template'].sudo().search([('default_code', '=', product_code)], limit=1)
@@ -26,6 +30,14 @@ class POSTMasterItem(http.Controller):
                     'status': "Failed",
                     'code': 500,
                     'message': f"Failed to create Item. Duplicate item code: {product_code}.",
+                }
+            
+            name_categ = request.env['product.category'].sudo().search([('complete_name', '=', category_name)], limit=1)
+            if not name_categ:
+                return {
+                    'status': "Failed",
+                    'code': 500,
+                    'message': f"Failed to create Item. Category not found: {category_name}.",
                 }
 
             items = request.env['product.template'].sudo().create({
@@ -38,7 +50,8 @@ class POSTMasterItem(http.Controller):
                 'standard_price': cost,
                 'uom_id': uom_id,
                 'uom_po_id': uom_po_id,
-                'categ_id': categ_id,
+                'pos_categ_ids': [(6, 0, pos_categ_id)],
+                'categ_id': name_categ.id,
                 'available_in_pos': available_in_pos
             })
             
@@ -207,7 +220,7 @@ class POSTMasterWarehouse(http.Controller):
                 'message': f"Failed to create Warehouse. Error: {str(e)}",
             }
     
-class POSTMasterCategory(http.Controller):
+class POSTItemCategory(http.Controller):
     @http.route('/api/item_category', type='json', auth='public', methods=['POST'], csrf=False)
     def post_master_item(self, **kw):
         try:
@@ -246,116 +259,193 @@ class POSTMasterCategory(http.Controller):
                 'message': f"Failed to create Category. Error: {str(e)}",
             }
 
-class POSTGoodsReceipt(http.Controller):
-        @http.route('/api/goods_receipt', type='json', auth='public', methods=['POST'], csrf=False)
-        def post_goods_receipt(self, **kw):
-            try:
-                    data = request.httprequest.get_json()
-                    customer_id = data.get('customer_id')
-                    picking_type_id = data.get('picking_type_id')
-                    location_id = data.get('location_id')
-                    location_dest_id = data.get('location_dest_id')
-                    scheduled_date = data.get('scheduled_date')
-                    date_done = data.get('date_done')
-                    source_document = data.get('origin')
-                    is_integrated = data.get('is_integrated')
-                    items_lines = data.get('move_ids_without_package', [])
-                    items_lines_data = []
+class POSTItemPoSCategory(http.Controller):
+    @http.route('/api/pos_category', type='json', auth='public', methods=['POST'], csrf=False)
+    def post_pos_category(self, **kw):
+        try:
+            data = request.httprequest.get_json()
+            category_name = data.get('category_name')
+            create_date = data.get('create_date')
 
-                    for line in items_lines:
-                        product_code = line.get('product_code')
-                        demand_quantity = line.get('demand')
-                        quantity = line.get('quantity')
-                
-                        product = request.env['product.product'].sudo().search([('default_code', '=', product_code)], limit=1)
-
-                        if product:
-                            # Create order line data with the correct format
-                            receipt_line_data = {
-                                'product_id': product.id,
-                                'product_uom_qty': demand_quantity,
-                                'quantity': quantity,
-                            }
-                            items_lines_data.append(receipt_line_data)
-
-                    # Create the pricelist with the prepared item lines
-                    goods_receipt = request.env['stock.picking'].sudo().create({
-                        'partner_id': customer_id,
-                        'picking_type_id': picking_type_id,
-                        'location_dest_id': location_dest_id,
-                        'scheduled_date': scheduled_date,
-                        'date_done': date_done,
-                        'origin': source_document,
-                        'is_integrated': is_integrated,
-                        'item_ids': [(0, 0, line_data) for line_data in items_lines_data],
-                    })
-
-                    return {
-                        'code': 200,
-                        'status': 'success',
-                        'message': 'Goods Receipt created successfully',
-                        'id': goods_receipt.id,
-                    }
-                
-            except Exception as e:
+            existing_category = request.env['pos.category'].sudo().search([('name', '=', category_name)], limit=1)
+            if existing_category:
                 return {
                     'status': "Failed",
                     'code': 500,
-                    'message': f"Failed to create Goods Receipt. Error: {str(e)}",
+                    'message': f"Failed to create PoS Category. Duplicate category code: {category_name}.",
                 }
-    
+
+            category = request.env['pos.category'].sudo().create({
+                'name': category_name,
+                'create_date': create_date
+            })
+            
+            return {
+                'code': 200,
+                'status': 'success',
+                'message': 'PoS Category created successfully',
+                'id': category.id,
+            }
+        
+        except Exception as e:
+            return {
+                'status': "Failed",
+                'code': 500,
+                'message': f"Failed to create Category. Error: {str(e)}",
+            }
+        
+class POSTGoodsReceipt(http.Controller):
+    @http.route('/api/goods_receipt', type='json', auth='public', methods=['POST'], csrf=False)
+    def post_goods_receipt(self, **kw):
+        try:
+            data = request.httprequest.get_json()
+            picking_type_name = data.get('picking_type')
+            location_id = data.get('location_id')
+            location_dest_id = data.get('location_dest_id')
+            scheduled_date = data.get('scheduled_date')
+            date_done = data.get('date_done')
+            transaction_id = data.get('transaction_id')
+            move_type = data.get('move_type')
+            move_lines = data.get('move_lines', [])
+
+            existing_goods_receipts = request.env['stock.picking'].sudo().search([('vit_trxid', '=', transaction_id), ('picking_type_id.name', '=', picking_type_name)], limit=1)
+            if not existing_goods_receipts:   
+                picking_type = request.env['stock.picking.type'].sudo().search([('name', '=', picking_type_name)], limit=1)
+                if not picking_type:
+                    return {
+                        'status': "Failed",
+                        'code': 500,
+                        'message': f"Failed to create Goods Receipt. Invalid picking type: {picking_type_name}.",
+                    }
+
+                goods_receipt = request.env['stock.picking'].sudo().create({
+                    'picking_type_id': picking_type.id,
+                    'location_id': location_id,
+                    'location_dest_id': location_dest_id,
+                    'move_type': move_type,
+                    'scheduled_date': scheduled_date,
+                    'date_done': date_done,
+                    'vit_trxid': transaction_id,
+                })
+
+                for line in move_lines:
+                    product_code = line.get('product_code')
+                    product_uom_qty = line.get('product_uom_qty')
+
+                    product_id = request.env['product.product'].sudo().search([('default_code', '=', product_code)], limit=1)
+                    if not product_id:
+                        return {
+                            'status': "Failed",
+                            'code': 500,
+                            'message': f"Failed to create Goods Receipt. Invalid product code: {product_code}.",
+                        }
+
+                    request.env['stock.move'].sudo().create({
+                        'name': product_id.name,
+                        'product_id': product_id.id,
+                        'product_uom_qty': product_uom_qty,
+                        'picking_id': goods_receipt.id,
+                        'location_id': location_id,
+                        'location_dest_id': location_dest_id,
+                    })
+                
+                goods_receipt.button_validate()
+
+                return {
+                    'code': 200,
+                    'status': 'success',
+                    'message': 'Goods Receipt created successfully',
+                    'id': goods_receipt.id,
+                }
+            else:
+                return {
+                    'code': 500,
+                    'status': 'failed',
+                    'message': 'Goods Receipts already exists',
+                    'id': existing_goods_receipts.id,
+                }
+
+        except Exception as e:
+            return {
+                'status': "Failed",
+                'code': 500,
+                'message': f"Failed to create Goods Receipt. Error: {str(e)}",
+            }
+
 class POSTGoodsIssue(http.Controller):
     @http.route('/api/goods_issue', type='json', auth='public', methods=['POST'], csrf=False)
     def post_goods_issue(self, **kw):
         try:
             data = request.httprequest.get_json()
-            customer_id = data.get('customer_id')
-            picking_type_id = data.get('picking_type_id')
+            picking_type_name = data.get('picking_type')
+            location_id = data.get('location_id')
             location_dest_id = data.get('location_dest_id')
             scheduled_date = data.get('scheduled_date')
             date_done = data.get('date_done')
-            source_document = data.get('origin')
-            is_integrated = data.get('is_integrated')
-            items_lines = data.get('move_ids_without_package', [])
-            items_lines_data = []
+            transaction_id = data.get('transaction_id')
+            move_type = data.get('move_type')
+            move_lines = data.get('move_lines', [])
 
-            for line in items_lines:
-                product_code = line.get('product_code')
-                demand_quantity = line.get('demand')
-                quantity = line.get('quantity')
-        
-                product = request.env['product.product'].sudo().search([('default_code', '=', product_code)], limit=1)
-
-                if product:
-                    # Create order line data with the correct format
-                    issue_line_data = {
-                        'product_id': product.id,
-                        'product_uom_qty': demand_quantity,
-                        'quantity': quantity,
+            existing_goods_issue = request.env['stock.picking'].sudo().search([('vit_trxid', '=', transaction_id), ('picking_type_id.name', '=', picking_type_name)], limit=1)
+            if not existing_goods_issue:             
+                picking_type = request.env['stock.picking.type'].sudo().search([('name', '=', picking_type_name)], limit=1)
+                if not picking_type:
+                    return {
+                        'status': "Failed",
+                        'code': 500,
+                        'message': f"Failed to create Goods Issue. Invalid picking type: {picking_type_name}.",
                     }
-                    items_lines_data.append(issue_line_data)
 
-            # Create the pricelist with the prepared item lines
-            goods_issue = request.env['stock.picking'].sudo().create({
-                'partner_id': customer_id,
-                'picking_type_id': picking_type_id,
-                'location_dest_id': location_dest_id,
-                'scheduled_date': scheduled_date,
-                'date_done': date_done,
-                'origin': source_document,
-                'is_integrated': is_integrated,
-                'item_ids': [(0, 0, line_data) for line_data in items_lines_data],
-            })
+                goods_issue = request.env['stock.picking'].sudo().create({
+                    'picking_type_id': picking_type.id,
+                    'location_id': location_dest_id,
+                    'location_dest_id': location_id,
+                    'move_type': move_type,
+                    'scheduled_date': scheduled_date,
+                    'date_done': date_done,
+                    'vit_trxid': transaction_id,
+                })
 
-            return {
-                'code': 200,
-                'status': 'success',
-                'message': 'Goods issue created successfully',
-                'id': goods_issue.id,
-            }
+                for line in move_lines:
+                    product_code = line.get('product_code')
+                    product_uom_qty = line.get('product_uom_qty')
+
+                    product_id = request.env['product.product'].sudo().search([('default_code', '=', product_code)], limit=1)
+                    if not product_id:
+                        return {
+                            'status': "Failed",
+                            'code': 500,
+                            'message': f"Failed to create Goods Issue. Invalid product code: {product_code}.",
+                        }
+
+                    request.env['stock.move'].sudo().create({
+                        'name': product_id.name,
+                        'product_id': product_id.id,
+                        'product_uom_qty': product_uom_qty,
+                        'picking_id': goods_issue.id,
+                        'location_id': location_dest_id,
+                        'location_dest_id': location_id,
+                    })
+                
+                goods_issue.button_validate()
+
+                return {
+                    'code': 200,
+                    'status': 'success',
+                    'message': 'Goods Issue created successfully',
+                    'id': goods_issue.id,
+                }
+            else:
+                return {
+                    'code': 500,
+                    'status': 'failed',
+                    'message': 'Goods Issue already exists',
+                    'id': existing_goods_issue.id,
+                }
+
         except Exception as e:
             return {
                 'status': "Failed",
                 'code': 500,
-                'message': f"Failed to create Goods Issue Error: {str(e)}",
+                'message': f"Failed to create Goods Issue. Error: {str(e)}",
             }

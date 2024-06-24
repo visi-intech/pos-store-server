@@ -7,4 +7,5 @@ from odoo.exceptions import UserError
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
-    customer_code = fields.Char(string="Customer Code", default=False)
+    customer_code = fields.Char(string='Customer Code')
+    is_integrated = fields.Boolean(string="Integrated", default=False)

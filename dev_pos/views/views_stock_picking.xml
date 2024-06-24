@@ -11,6 +11,9 @@
             <field name="is_integrated"/>
             <field name="vit_trxid"/>
         </xpath>
+         <field name="origin" position="attributes">
+            <attribute name="readonly">0</attribute>
+        </field>
       </field>
     </record>
 
